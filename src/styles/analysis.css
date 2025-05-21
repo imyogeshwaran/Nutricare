@@ -1,0 +1,105 @@
+/* Analysis content container */
+.analysis-content {
+  line-height: 1.8;
+  color: #374151;
+  font-size: 1rem;
+  letter-spacing: -0.011em;
+  padding: 0.5rem;
+}
+
+/* Section headers */
+.analysis-content h3 {
+  color: #1e40af;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 2rem 0 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e5e7eb;
+  letter-spacing: -0.025em;
+}
+
+.analysis-content h3:first-child {
+  margin-top: 0;
+}
+
+/* Paragraphs */
+.analysis-content p {
+  margin-bottom: 1.25rem;
+  line-height: 1.8;
+  color: #4b5563;
+}
+
+/* Lists */
+.analysis-content ul {
+  margin: 1.25rem 0;
+  padding-left: 1.5rem;
+  list-style: none;
+}
+
+.analysis-content li {
+  position: relative;
+  padding-left: 1.25rem;
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.analysis-content li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #059669;
+  font-weight: bold;
+}
+
+/* Important terms highlighting */
+.analysis-content .text-emerald-600 {
+  color: #059669;
+  font-weight: 500;
+  padding: 0.125rem 0.25rem;
+  margin: 0 -0.25rem;
+  border-radius: 0.25rem;
+  transition: background-color 0.2s ease;
+  cursor: default;
+}
+
+.analysis-content .text-emerald-600:hover {
+  background-color: rgba(5, 150, 105, 0.1);
+}
+
+/* Warning values highlighting */
+.analysis-content .text-red-600 {
+  color: #dc2626;
+  font-weight: 600;
+  background-color: #fef2f2;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  margin: 0 0.125rem;
+  border: 1px solid rgba(220, 38, 38, 0.1);
+}
+
+/* Section spacing and dividers */
+.analysis-content > section {
+  padding: 1.5rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.analysis-content > section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Responsive typography */
+@media (min-width: 768px) {
+  .analysis-content {
+    font-size: 1.125rem;
+    padding: 1rem;
+  }
+  
+  .analysis-content h3 {
+    font-size: 1.5rem;
+  }
+  
+  .analysis-content p {
+    margin-bottom: 1.5rem;
+  }
+}
