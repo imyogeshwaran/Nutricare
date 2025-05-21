@@ -29,16 +29,19 @@ const createTransporter = async () => {
   }
 };
 
-// Generate JWT token
+// Generate JWT token with improved security
 const generateToken = (userId) => {
   return jwt.sign(
     { id: userId },
     process.env.JWT_SECRET || '2025!@#$',
-    { expiresIn: '30d' }
+    { 
+      expiresIn: '30d',
+      algorithm: 'HS256'
+    }
   );
 };
 
-// Generate and send OTP
+// Enhanced OTP generation and sending
 const sendOTP = async (email, otp) => {
   try {
     const transporter = await createTransporter();
@@ -62,10 +65,7 @@ const sendOTP = async (email, otp) => {
       `,
     };
     
-    console.log('Attempting to send email to:', email);
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Message sent successfully! ID:', info.messageId);
-    
+    await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
     console.error('Error sending email:', error);
@@ -73,13 +73,12 @@ const sendOTP = async (email, otp) => {
   }
 };
 
-// Register new user
+// Enhanced register function with better validation
 export const register = async (req, res) => {
   try {
-    console.log('Registration request received:', req.body);
     const { name, email, password, mobile } = req.body;
 
-    // Validate input
+    // Enhanced input validation
     if (!name || !email || !password || !mobile) {
       return res.status(400).json({ 
         message: 'Please provide all required fields',
@@ -87,7 +86,16 @@ export const register = async (req, res) => {
       });
     }
 
-    // Validate mobile number format
+    // Enhanced password validation
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        message: 'Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character',
+        field: 'password'
+      });
+    }
+
+    // Enhanced mobile validation
     const mobileRegex = /^[0-9]{10}$/;
     if (!mobileRegex.test(mobile)) {
       return res.status(400).json({ 
@@ -96,65 +104,83 @@ export const register = async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    // Check existing user
+    const existingUser = await User.findOne({
+      $or: [
+        { email: email.toLowerCase() },
+        { mobile: mobile }
+      ]
+    });
+
     if (existingUser) {
       return res.status(400).json({ 
-        message: 'An account with this email already exists',
-        field: 'email'
+        message: existingUser.email === email.toLowerCase() ? 
+          'An account with this email already exists' : 
+          'An account with this mobile number already exists',
+        field: existingUser.email === email.toLowerCase() ? 'email' : 'mobile'
       });
     }
 
-    // Generate OTP - 6 digits only
+    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Create new user
+    // Create new user with enhanced security
     const user = new User({
       name,
-      email,
+      email: email.toLowerCase(),
       password,
       mobile,
       membershipDate: new Date(),
+      loginAttempts: {
+        count: 0,
+        lastAttempt: null,
+        lockUntil: null
+      }
     });
 
     // Set OTP
     user.setOTP(otp);
     await user.save();
 
-    // Create empty profile for the user
+    // Create user profile
     await Profile.create({
       user: user._id,
-      personalInfo: { name, mobile },
+      personalInfo: { 
+        name, 
+        mobile,
+        email: email.toLowerCase()
+      },
       medicalInfo: {}
     });
 
-    // Send OTP to user's email
-    await sendOTP(email, otp);
+    // Send verification email
+    try {
+      await sendOTP(email, otp);
+    } catch (error) {
+      // If email fails, delete the user and profile
+      await User.deleteOne({ _id: user._id });
+      await Profile.deleteOne({ user: user._id });
+      throw new Error('Failed to send verification email');
+    }
 
     res.status(201).json({ 
       message: 'Registration successful. Please check your email for verification code.',
       requiresOtp: true,
-      email
+      email: email.toLowerCase()
     });
   } catch (error) {
     console.error('Register error:', error);
-    if (error.message === 'Failed to send verification email') {
-      return res.status(500).json({ 
-        message: 'Registration successful but failed to send verification email. Please try logging in to resend the code.',
-        requiresOtp: true,
-        email: req.body.email
-      });
-    }
-    res.status(500).json({ message: 'Registration failed. Please try again.' });
+    res.status(500).json({ 
+      message: error.message || 'Registration failed. Please try again.' 
+    });
   }
 };
 
-// Login user
+// Enhanced login with security features
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
     
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({ 
         message: 'Please provide both email and password',
@@ -162,49 +188,65 @@ export const login = async (req, res) => {
       });
     }
     
-    console.log(`Login attempt for email: ${email}`);
-    
-    // Find user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
-      console.log(`Login failed: User with email ${email} not found`);
       return res.status(401).json({ 
-        message: 'Invalid email or password',
-        field: 'email'
+        message: 'Invalid email or password'
       });
     }
     
-    // Verify password
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      console.log(`Login failed: Invalid password for user ${email}`);
-      return res.status(401).json({ 
-        message: 'Invalid email or password',
-        field: 'password'
+    // Check account lock
+    if (user.loginAttempts?.lockUntil && user.loginAttempts.lockUntil > new Date()) {
+      const remainingTime = Math.ceil((user.loginAttempts.lockUntil - new Date()) / 1000 / 60);
+      return res.status(429).json({
+        message: `Account is temporarily locked. Please try again in ${remainingTime} minutes.`,
+        lockUntil: user.loginAttempts.lockUntil
       });
     }
     
-    console.log(`Password verification successful for user ${email}`);
+    // Verify password with attempt tracking
+    try {
+      const isMatch = await user.comparePassword(password);
+      if (!isMatch) {
+        return res.status(401).json({ 
+          message: 'Invalid email or password'
+        });
+      }
+    } catch (error) {
+      if (error.message.includes('Account is temporarily locked')) {
+        const remainingTime = Math.ceil((user.loginAttempts.lockUntil - new Date()) / 1000 / 60);
+        return res.status(429).json({
+          message: `Account is temporarily locked. Please try again in ${remainingTime} minutes.`,
+          lockUntil: user.loginAttempts.lockUntil
+        });
+      }
+      throw error;
+    }
     
-    // Check if user is verified
+    // Handle unverified account
     if (!user.verified) {
-      // Generate new OTP
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      
       user.setOTP(otp);
       await user.save();
       
-      // Send OTP to user's email
-      await sendOTP(email, otp);
+      try {
+        await sendOTP(email, otp);
+      } catch (error) {
+        console.error('Failed to send OTP:', error);
+        return res.status(500).json({
+          message: 'Failed to send verification code. Please try again.',
+          error: 'email_send_failed'
+        });
+      }
       
       return res.status(200).json({ 
         message: 'Account not verified. Please check your email for verification code.',
         requiresOtp: true,
-        email
+        email: email.toLowerCase()
       });
     }
     
-    // Generate token
+    // Generate token and send response
     const token = generateToken(user._id);
     
     res.status(200).json({
@@ -212,7 +254,8 @@ export const login = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        verified: user.verified
       },
       token
     });
@@ -222,12 +265,11 @@ export const login = async (req, res) => {
   }
 };
 
-// Verify OTP
+// Enhanced OTP verification
 export const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
     
-    // Validate input
     if (!email || !otp) {
       return res.status(400).json({ 
         message: 'Please provide both email and OTP',
@@ -235,29 +277,41 @@ export const verifyOtp = async (req, res) => {
       });
     }
     
-    // Find user
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: email.toLowerCase() });
     if (!user) {
       return res.status(404).json({ 
-        message: 'User not found',
-        field: 'email'
+        message: 'User not found'
       });
     }
     
-    // Validate OTP
-    if (!user.isOTPValid(otp)) {
+    const isValid = user.isOTPValid(otp);
+    await user.save(); // Save attempt count
+
+    if (!isValid) {
+      if (user.otp.attempts >= 3) {
+        return res.status(429).json({
+          message: 'Maximum OTP attempts reached. Please request a new code.',
+          error: 'max_attempts_reached'
+        });
+      }
+      
+      if (user.otp.expiresAt <= new Date()) {
+        return res.status(400).json({
+          message: 'OTP has expired. Please request a new code.',
+          error: 'otp_expired'
+        });
+      }
+      
       return res.status(400).json({ 
-        message: 'Invalid or expired OTP',
-        field: 'otp'
+        message: 'Invalid verification code',
+        attemptsLeft: 3 - user.otp.attempts
       });
     }
     
-    // Mark user as verified and clear OTP
     user.verified = true;
     user.clearOTP();
     await user.save();
     
-    // Generate token
     const token = generateToken(user._id);
     
     res.status(200).json({
@@ -265,7 +319,8 @@ export const verifyOtp = async (req, res) => {
       user: {
         id: user._id,
         name: user.name,
-        email: user.email
+        email: user.email,
+        verified: true
       },
       token
     });
