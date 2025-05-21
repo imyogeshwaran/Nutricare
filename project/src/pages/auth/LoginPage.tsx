@@ -72,7 +72,6 @@ const LoginPage: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-900">Welcome Back</h1>
             <p className="text-gray-600">Sign in to your NutriCare account</p>
           </div>
-
           <Formik
             initialValues={{ email: '', password: '' }}
             validationSchema={LoginSchema}

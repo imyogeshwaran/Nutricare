@@ -1,17 +1,15 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';
+import { RouterProvider } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import App from './App';
+import router from './router';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <App />
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} 
-        newestOnTop closeOnClick pauseOnHover draggable />
-    </BrowserRouter>
+    <RouterProvider router={router} />
+    <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} 
+      newestOnTop closeOnClick pauseOnHover draggable />
   </StrictMode>
 );
