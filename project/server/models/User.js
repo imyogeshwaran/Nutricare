@@ -35,21 +35,6 @@ const userSchema = new mongoose.Schema({
     attempts: {
       type: Number,
       default: 0
-    },
-    lastAttempt: {
-      type: Date
-    }
-  },
-  loginAttempts: {
-    count: {
-      type: Number,
-      default: 0
-    },
-    lastAttempt: {
-      type: Date
-    },
-    lockUntil: {
-      type: Date
     }
   },
   mobile: {
@@ -67,12 +52,12 @@ const userSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Hash password before saving with stronger salt rounds
+// Hash password before saving
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
   try {
-    const salt = await bcrypt.genSalt(12); // Increased from 10 to 12
+    const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {
@@ -80,88 +65,72 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// Enhanced password comparison with attempt tracking
+// Compare password method
 userSchema.methods.comparePassword = async function(candidatePassword) {
   try {
-    // Check if account is locked
-    if (this.loginAttempts.lockUntil && this.loginAttempts.lockUntil > new Date()) {
-      throw new Error('Account is temporarily locked. Please try again later.');
-    }
-
     const isMatch = await bcrypt.compare(candidatePassword, this.password);
-    
-    if (!isMatch) {
-      // Increment login attempts
-      this.loginAttempts.count += 1;
-      this.loginAttempts.lastAttempt = new Date();
-      
-      // Lock account if more than 5 failed attempts within 15 minutes
-      if (this.loginAttempts.count >= 5) {
-        this.loginAttempts.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-      }
-      
-      await this.save();
-    } else {
-      // Reset login attempts on successful login
-      if (this.loginAttempts.count > 0) {
-        this.loginAttempts.count = 0;
-        this.loginAttempts.lockUntil = null;
-        await this.save();
-      }
-    }
-    
+    console.log(`Password comparison result for ${this.email}: ${isMatch ? 'Success' : 'Failed'}`);
     return isMatch;
   } catch (error) {
     console.error('Error comparing passwords:', error);
-    throw error;
+    return false;
   }
 };
 
-// Enhanced OTP validation with attempt tracking
-userSchema.methods.isOTPValid = function(otpCode) {
-  if (!this.otp?.code || !this.otp?.expiresAt) {
-    console.log('OTP validation failed: No valid OTP stored');
-    return false;
-  }
-
-  // Check if too many attempts (max 3)
-  if (this.otp.attempts >= 3) {
-    console.log('OTP validation failed: Max attempts reached');
-    return false;
-  }
-
-  // Check if OTP has expired
-  if (this.otp.expiresAt <= new Date()) {
-    console.log('OTP validation failed: Code expired');
-    return false;
-  }
-
-  // Update attempts
-  this.otp.attempts += 1;
-  this.otp.lastAttempt = new Date();
-  
-  // Compare OTP
-  return this.otp.code === otpCode;
-};
-
-// Clear OTP after successful verification
-userSchema.methods.clearOTP = function() {
-  this.otp = {
-    code: null,
-    expiresAt: null,
-    attempts: 0,
-    lastAttempt: null
-  };
-};
-
-// Set new OTP
+// Set OTP and expiration
 userSchema.methods.setOTP = function(otpCode) {
   this.otp = {
     code: otpCode,
     expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-    attempts: 0,
-    lastAttempt: null
+    attempts: 0
   };
+};
+
+// Check if OTP is valid
+userSchema.methods.isOTPValid = function(otpCode) {
+  console.log(`Validating OTP for user ${this.email}`);
+  
+  if (!this.otp) {
+    console.log('OTP validation failed: No OTP stored for user');
+    return false;
+  }
+  
+  // Check if OTP has expired
+  if (this.otp.expiresAt <= new Date()) {
+    console.log(`OTP validation failed: Code expired at ${this.otp.expiresAt}`);
+    return false;
+  }
+  
+  // Check if too many attempts
+  if (this.otp.attempts >= 3) {
+    console.log('OTP validation failed: Too many attempts');
+    return false;
+  }
+  
+  // Increment attempts
+  this.otp.attempts += 1;
+  
+  // Check if OTP matches
+  const isValid = this.otp.code === otpCode;
+  if (!isValid) {
+    console.log('OTP validation failed: Codes do not match');
+    return false;
+  }
+  
+  console.log('OTP validation successful');
+  return true;
+};
+
+// Clear OTP after use
+userSchema.methods.clearOTP = function() {
+  this.otp = undefined;
+};
+
+// Reset OTP attempts
+userSchema.methods.resetOTPAttempts = function() {
+  if (this.otp) {
+    this.otp.attempts = 0;
+  }
 };
 
 const User = mongoose.model('User', userSchema);

@@ -30,8 +30,8 @@ const PORT = process.env.PORT || 5000;
 app.use(express.json());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
-    ? ['https://nutricare-frontend.netlify.app']
-    : ['http://localhost:5173', 'http://localhost:5174'],
+    ? ['https://nutricare-frontend.netlify.app'] // ✅ your Netlify frontend domain
+    : ['http://localhost:5173'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
