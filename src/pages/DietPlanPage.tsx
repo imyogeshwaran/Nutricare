@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
+import config from '../config';
 
 interface MealPlan {
   name: string;
@@ -73,7 +74,7 @@ const DietPlanPage: React.FC = () => {
         throw new Error('Blood pressure must be in format "systolic/diastolic" (e.g., 120/80)');
       }
 
-      const response = await fetch('http://localhost:5000/api/diet-plan/analyze', {
+      const response = await fetch(`${config.apiUrl}/diet-plan/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -82,14 +83,30 @@ const DietPlanPage: React.FC = () => {
         body: JSON.stringify(mealPlan)
       });
       
-      const data = await response.json();
-      
-      if (response.ok && data.success && data.analysis) {
-        setAnalysis(data.analysis);
+      let data;
+      if (response.ok) {
+        try {
+          data = await response.json();
+        } catch (jsonErr) {
+          throw new Error('Received non-JSON response from server.');
+        }
+        if (data.success && data.analysis) {
+          setAnalysis(data.analysis);
+        } else {
+          let errorMsg = data.error || 'Failed to analyze diet plan.';
+          if (data.details) errorMsg += `\nDetails: ${data.details}`;
+          throw new Error(errorMsg);
+        }
       } else {
-        let errorMsg = data.error || 'Failed to analyze diet plan.';
-        if (data.details) errorMsg += `\nDetails: ${data.details}`;
-        throw new Error(errorMsg);
+        // Try to parse error JSON, otherwise show generic error
+        try {
+          data = await response.json();
+          let errorMsg = data.error || 'Failed to analyze diet plan.';
+          if (data.details) errorMsg += `\nDetails: ${data.details}`;
+          throw new Error(errorMsg);
+        } catch (jsonErr) {
+          throw new Error('Server error: Unable to analyze diet plan.');
+        }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to analyze diet plan.';

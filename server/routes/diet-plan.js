@@ -7,7 +7,10 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const router = Router();
-const API_KEY = "AIzaSyBobNxrOsizlp-3o3JkZ0Vyod4MaWaRdf8";
+const API_KEY = process.env.GEMINI_API_KEY;
+if (!API_KEY) {
+  console.error('GEMINI_API_KEY is not set in environment variables.');
+}
 const MODEL_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 // Helper function to validate API response
@@ -20,6 +23,9 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Helper function to make API call with retries
 async function queryGemini(data, maxRetries = 3) {
+  if (!API_KEY) {
+    throw new Error('Gemini API key is missing. Set GEMINI_API_KEY in your environment variables.');
+  }
   for (let i = 0; i < maxRetries; i++) {
     try {
       console.log(`Attempt ${i + 1}/${maxRetries} to query Gemini API...`);
@@ -157,34 +163,56 @@ router.post('/analyze', protect, async (req, res) => {
   }
 
   // Create a merged profile with form data taking precedence
-  const mergedProfile = {
-    personalInfo: {
-      ...profile?.personalInfo || {},
-      name: name || profile?.personalInfo?.name,
-      age: age || profile?.personalInfo?.age,
-      height: height || profile?.personalInfo?.height,
-      weight: weight || profile?.personalInfo?.weight,
-      sex: sex || profile?.personalInfo?.sex,
-      activityLevel: activityLevel || profile?.personalInfo?.activityLevel
-    },
-    medicalInfo: {
-      ...profile?.medicalInfo || {},
-      sugarLevel: sugarLevel || profile?.medicalInfo?.sugarLevel,
-      bloodPressure: bpLevel ? {
-        systolic: parseInt(bpLevel.split('/')[0]),
-        diastolic: parseInt(bpLevel.split('/')[1])
-      } : profile?.medicalInfo?.bloodPressure
-    }
-  };
+  let mergedProfile;
+  if (profile) {
+    mergedProfile = {
+      personalInfo: {
+        ...profile.personalInfo,
+        name: name || profile.personalInfo?.name,
+        age: age || profile.personalInfo?.age,
+        height: height || profile.personalInfo?.height,
+        weight: weight || profile.personalInfo?.weight,
+        sex: sex || profile.personalInfo?.sex,
+        activityLevel: activityLevel || profile.personalInfo?.activityLevel
+      },
+      medicalInfo: {
+        ...profile.medicalInfo,
+        sugarLevel: sugarLevel || profile.medicalInfo?.sugarLevel,
+        bloodPressure: bpLevel ? {
+          systolic: parseInt(bpLevel.split('/')[0]),
+          diastolic: parseInt(bpLevel.split('/')[1])
+        } : profile.medicalInfo?.bloodPressure
+      }
+    };
+  } else {
+    mergedProfile = {
+      personalInfo: {
+        name,
+        age,
+        height,
+        weight,
+        sex,
+        activityLevel
+      },
+      medicalInfo: {
+        sugarLevel,
+        bloodPressure: bpLevel ? {
+          systolic: parseInt(bpLevel.split('/')[0]),
+          diastolic: parseInt(bpLevel.split('/')[1])
+        } : undefined
+      }
+    };
+  }
 
   // Calculate BMI if possible
   let bmi = null;
-  if (profile.personalInfo.height && profile.personalInfo.weight) {
+  if (profile && profile.personalInfo && profile.personalInfo.height && profile.personalInfo.weight) {
     const heightM = profile.personalInfo.height / 100;
     bmi = (profile.personalInfo.weight / (heightM * heightM)).toFixed(1);
-  }  // Calculate BMI using the most recent measurements from merged profile
+  }
+  // Calculate BMI using the most recent measurements from mergedProfile
   const calculatedBMI = (() => {
-    if (mergedProfile.personalInfo.height && mergedProfile.personalInfo.weight) {
+    if (mergedProfile && mergedProfile.personalInfo && mergedProfile.personalInfo.height && mergedProfile.personalInfo.weight) {
       const heightM = mergedProfile.personalInfo.height / 100;
       return (mergedProfile.personalInfo.weight / (heightM * heightM)).toFixed(1);
     }
@@ -218,22 +246,22 @@ When analyzing the health profile and meal plan:
 Your life depends on you providing highly specific, personalized analysis that directly references the exact values and circumstances of this individual rather than generic health advice. Never provide generalized recommendations that could apply to anyone - every statement must be tailored to this specific profile.
 
 USER HEALTH PROFILE:
-- Name: ${mergedProfile.personalInfo.name || 'Not provided'}
-- Age: ${mergedProfile.personalInfo.age || 'Not provided'} years
-- Sex: ${mergedProfile.personalInfo.sex || 'Not provided'}
-- Height: ${mergedProfile.personalInfo.height || 'Not provided'} cm
-- Weight: ${mergedProfile.personalInfo.weight || 'Not provided'} kg
+- Name: ${mergedProfile.personalInfo?.name || 'Not provided'}
+- Age: ${mergedProfile.personalInfo?.age || 'Not provided'} years
+- Sex: ${mergedProfile.personalInfo?.sex || 'Not provided'}
+- Height: ${mergedProfile.personalInfo?.height || 'Not provided'} cm
+- Weight: ${mergedProfile.personalInfo?.weight || 'Not provided'} kg
 - BMI: ${calculatedBMI || 'Not provided'}
-- Activity Level: ${mergedProfile.personalInfo.activityLevel || 'Not provided'}
-- Blood Pressure: ${profile.medicalInfo.bloodPressure ? `${profile.medicalInfo.bloodPressure.systolic}/${profile.medicalInfo.bloodPressure.diastolic}` : 'Not provided'} mmHg
-- Sugar Level: ${profile.medicalInfo.sugarLevel || 'Not provided'} mg/dL
-- Blood Group: ${profile.personalInfo.bloodGroup || 'Not provided'}
-- Diseases: ${(profile.medicalInfo.diseases && profile.medicalInfo.diseases.length > 0) ? profile.medicalInfo.diseases.join(', ') : 'None'}
-- Deficiencies: ${(profile.personalInfo.deficiencies && profile.personalInfo.deficiencies.length > 0) ? profile.personalInfo.deficiencies.join(', ') : 'None'}
-- Duration of Condition: ${profile.personalInfo.conditionDuration || 'Not provided'}
-- Symptoms: ${(profile.medicalInfo.symptoms && profile.medicalInfo.symptoms.length > 0) ? profile.medicalInfo.symptoms.join(', ') : 'None'}
-- Allergies: ${(profile.medicalInfo.allergies && profile.medicalInfo.allergies.length > 0) ? profile.medicalInfo.allergies.join(', ') : 'None'}
-- Medications: ${(profile.medicalInfo.medications && profile.medicalInfo.medications.length > 0) ? profile.medicalInfo.medications.join(', ') : 'None'}
+- Activity Level: ${mergedProfile.personalInfo?.activityLevel || 'Not provided'}
+- Blood Pressure: ${mergedProfile.medicalInfo?.bloodPressure ? `${mergedProfile.medicalInfo.bloodPressure.systolic}/${mergedProfile.medicalInfo.bloodPressure.diastolic}` : 'Not provided'} mmHg
+- Sugar Level: ${mergedProfile.medicalInfo?.sugarLevel || 'Not provided'} mg/dL
+- Blood Group: ${mergedProfile.personalInfo?.bloodGroup || 'Not provided'}
+- Diseases: ${(mergedProfile.medicalInfo?.diseases && mergedProfile.medicalInfo.diseases.length > 0) ? mergedProfile.medicalInfo.diseases.join(', ') : 'None'}
+- Deficiencies: ${(mergedProfile.personalInfo?.deficiencies && mergedProfile.personalInfo.deficiencies.length > 0) ? mergedProfile.personalInfo.deficiencies.join(', ') : 'None'}
+- Duration of Condition: ${mergedProfile.personalInfo?.conditionDuration || 'Not provided'}
+- Symptoms: ${(mergedProfile.medicalInfo?.symptoms && mergedProfile.medicalInfo.symptoms.length > 0) ? mergedProfile.medicalInfo.symptoms.join(', ') : 'None'}
+- Allergies: ${(mergedProfile.medicalInfo?.allergies && mergedProfile.medicalInfo.allergies.length > 0) ? mergedProfile.medicalInfo.allergies.join(', ') : 'None'}
+- Medications: ${(mergedProfile.medicalInfo?.medications && mergedProfile.medicalInfo.medications.length > 0) ? mergedProfile.medicalInfo.medications.join(', ') : 'None'}
 
 MEAL PLAN:
 - Morning Meal: ${morning || 'Not provided'}
