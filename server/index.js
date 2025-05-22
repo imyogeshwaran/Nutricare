@@ -50,6 +50,11 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+// Root welcome endpoint
+app.get('/', (req, res) => {
+  res.status(200).json({ message: 'Welcome to the Nutricare API' });
+});
+
 // Test database connection
 app.get('/api/test-db', async (req, res) => {
   try {
