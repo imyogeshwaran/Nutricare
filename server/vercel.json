@@ -8,11 +8,12 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "/index.js"
+      "src": "/api/(.*)",
+      "dest": "index.js"
     }
   ],
   "env": {
-    "NODE_ENV": "production"
+    "NODE_ENV": "production",
+    "CORS_ORIGIN": "https://nutricare-frontend.netlify.app"
   }
 }

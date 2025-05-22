@@ -3,9 +3,11 @@ import { toast } from 'react-toastify';
 import config from '../config';
 
 // Update API base URL configuration
-export const API_BASE_URL = config.apiUrl;
+export const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? config.apiUrl
+  : '';  // Empty string will use relative URLs with the proxy
 
-console.log('API is connecting to:', API_BASE_URL);
+console.log('API is connecting to:', API_BASE_URL || 'relative URLs (using proxy)');
 
 const api = axios.create({
   baseURL: API_BASE_URL,

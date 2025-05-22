@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '../utils/api';
+import config from '../config';
 
 interface User {
   id: string;
@@ -33,7 +34,7 @@ export const useAuthStore = create<AuthState>()(
       
       login: async (email: string, password: string) => {
         try {
-          const response = await api.post('/auth/login', { email, password });
+          const response = await api.post(`${config.apiUrl}/auth/login`, { email, password });
           
           if (response.data.requiresOtp) {
             return { requiresOtp: true };
@@ -50,7 +51,7 @@ export const useAuthStore = create<AuthState>()(
       register: async (name: string, email: string, password: string, mobile: string) => {
         try {
           console.log('Registering user:', { name, email, mobile });
-          const response = await api.post('/auth/register', { name, email, password, mobile });
+          const response = await api.post(`${config.apiUrl}/auth/register`, { name, email, password, mobile });
           console.log('Registration response:', response.data);
           
           // Set the temporary email for OTP verification
@@ -66,7 +67,7 @@ export const useAuthStore = create<AuthState>()(
       
       verifyOtp: async (email: string, otp: string) => {
         try {
-          const response = await api.post('/auth/verify-otp', { email, otp });
+          const response = await api.post(`${config.apiUrl}/auth/verify-otp`, { email, otp });
           const { user, token } = response.data;
           set({ user, token, isAuthenticated: true, tempEmail: null });
         } catch (error: any) {
