@@ -28,16 +28,31 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.json());
+
+const allowedOrigins = [
+  'https://nutricareai.netlify.app',
+  'http://localhost:5173'
+];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://nutricare-frontend.netlify.app'] // ✅ your Netlify frontend domain
-    : ['http://localhost:5173'],
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+app.options('*', cors());
 app.use(helmet());
 app.use(morgan('dev'));
+
+// Handle preflight requests for all routes
 app.options('*', cors());
 
 // API routes
@@ -123,3 +138,4 @@ app.use('*', (req, res) => {
 });
 
 export default app;
+
