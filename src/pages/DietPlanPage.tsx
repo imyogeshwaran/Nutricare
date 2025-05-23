@@ -74,12 +74,22 @@ const DietPlanPage: React.FC = () => {
         throw new Error('Blood pressure must be in format "systolic/diastolic" (e.g., 120/80)');
       }
 
+      // --- Token check and header setup ---
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token && token !== 'null' && token !== 'undefined') {
+        headers['Authorization'] = `Bearer ${token}`;
+      } else {
+        setError('You must be logged in to analyze your diet plan.');
+        setLoading(false);
+        return;
+      }
+
       const response = await fetch(`${config.apiUrl}/diet-plan/analyze`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
+        headers,
         body: JSON.stringify(mealPlan)
       });
       
